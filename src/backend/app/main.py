@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from app.database import async_engine
 from app.errors import InfraHubError
 from app.middleware import RequestIDMiddleware, get_request_id
-from app.routers import health
+from app.routers import auth, health
 
 
 @asynccontextmanager
@@ -42,3 +42,4 @@ async def infrahub_error_handler(request: Request, exc: InfraHubError) -> JSONRe
 
 
 app.include_router(health.router)
+app.include_router(auth.router)
