@@ -5,7 +5,7 @@
     {
       "id": "STORY-001",
       "title": "Database schema — Alembic migrations (6 revisions)",
-      "status": "pending",
+      "status": "in-progress",
       "priority": "high",
       "type": "feature",
       "description": "Create the full PostgreSQL database schema for InfraHub using Alembic migrations. The schema covers the org hierarchy (centers → fields → departments → teams), server inventory, allocation tables (field_server_allocations, department_quota_allocations, team_quota_allocations), and projects. Six incremental migration revisions must be created under src/backend/alembic/versions/.",

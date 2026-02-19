@@ -6,8 +6,9 @@ and creates the centers table (org root, Level 1 of the hierarchy).
 Revision ID: 0001
 Create Date: 2026-02-19
 """
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "0001"
 down_revision = None
