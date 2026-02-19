@@ -1,0 +1,258 @@
+{
+  "version": "1.0.0",
+  "project": "infrahub",
+  "stories": [
+    {
+      "id": "STORY-001",
+      "title": "Database schema — Alembic migrations (6 revisions)",
+      "status": "pending",
+      "priority": "high",
+      "type": "feature",
+      "description": "Create the full PostgreSQL database schema for InfraHub using Alembic migrations. The schema covers the org hierarchy (centers → fields → departments → teams), server inventory, allocation tables (field_server_allocations, department_quota_allocations, team_quota_allocations), and projects. Six incremental migration revisions must be created under src/backend/alembic/versions/.",
+      "acceptanceCriteria": [
+        "alembic upgrade head runs with zero errors on a fresh PostgreSQL database",
+        "All 6 revision files exist under src/backend/alembic/versions/ with correct down_revision chains",
+        "Revision 0001: pgcrypto extension + centers table (id UUID PK default gen_random_uuid(), name TEXT UNIQUE NOT NULL, created_at TIMESTAMPTZ DEFAULT now())",
+        "Revision 0002: fields (id, center_id FK→centers, name TEXT, site TEXT, UNIQUE(center_id,name)) and departments (id, field_id FK→fields, name TEXT, UNIQUE(field_id,name)) and teams (id, department_id FK→departments, name TEXT, ldap_group_cn TEXT UNIQUE, UNIQUE(department_id,name))",
+        "Revision 0003: servers (id, name TEXT UNIQUE, vendor TEXT, site TEXT, deployment_cluster TEXT, cpu INT, ram_gb INT, serial_number TEXT UNIQUE, product TEXT, performance_tier TEXT CHECK IN ('regular','high_performance'), status TEXT DEFAULT 'active' CHECK IN ('active','offline'), synced_at TIMESTAMPTZ)",
+        "Revision 0004: field_server_allocations (id, server_id UUID UNIQUE FK→servers, field_id FK→fields, allocated_at TIMESTAMPTZ, allocated_by TEXT)",
+        "Revision 0005: department_quota_allocations (id, field_id FK→fields, department_id FK→departments, site TEXT, cpu_limit INT NOT NULL, ram_gb_limit INT NOT NULL, cpu_used INT DEFAULT 0, ram_gb_used INT DEFAULT 0, UNIQUE(department_id,site)) and team_quota_allocations (id, department_id FK→departments, team_id FK→teams, site TEXT, cpu_limit INT NOT NULL, ram_gb_limit INT NOT NULL, cpu_used INT DEFAULT 0, ram_gb_used INT DEFAULT 0, UNIQUE(team_id,site))",
+        "Revision 0006: projects (id, name TEXT NOT NULL, team_id FK→teams, site TEXT, sla_type TEXT CHECK IN ('bronze','silver','gold'), performance_tier TEXT CHECK IN ('regular','high_performance'), namespace_name TEXT UNIQUE, status TEXT DEFAULT 'provisioning' CHECK IN ('provisioning','active','failed','deleting'), quota_cpu INT, quota_ram_gb INT, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ, deleted_at TIMESTAMPTZ, UNIQUE(team_id,name))",
+        "alembic downgrade base succeeds (all revisions are reversible)",
+        "src/backend/alembic/env.py reads DB_URL from environment via Pydantic Settings",
+        "src/backend/app/config.py contains AppSettings(BaseSettings) with DB_URL field that fails fast if missing",
+        "src/backend/pyproject.toml exists with alembic, asyncpg, sqlalchemy[asyncio], pydantic-settings dependencies listed"
+      ],
+      "technicalNotes": "Use async SQLAlchemy with asyncpg driver. The alembic env.py must use run_async_migrations() pattern. Each migration file should be named 0001_org_hierarchy.py, 0002_org_extended.py, 0003_servers.py, 0004_server_allocations.py, 0005_quota_allocations.py, 0006_projects.py. All UUID PKs use server_default=sa.text('gen_random_uuid()'). Include proper indexes on all FK columns. The pyproject.toml must use [project] table (PEP 517) with [project.optional-dependencies] dev = ['pytest','pytest-asyncio','pytest-cov','httpx','testcontainers']. Do not create any application code beyond config.py in this story.",
+      "estimatedComplexity": "M",
+      "dependencies": [],
+      "tags": [
+        "database",
+        "migrations",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "STORY-002",
+      "title": "FastAPI skeleton, config, health endpoints, error hierarchy",
+      "status": "pending",
+      "priority": "high",
+      "type": "feature",
+      "description": "Build the FastAPI application skeleton: app factory with lifespan, AsyncEngine + session factory, health endpoints, and the complete InfraHub error hierarchy with exception handlers. This is the foundation all other stories build on.",
+      "acceptanceCriteria": [
+        "src/backend/app/main.py defines a FastAPI app with lifespan context manager that creates the DB engine on startup and disposes on shutdown",
+        "src/backend/app/database.py exports async_engine, AsyncSessionLocal, and a get_db() async dependency that yields a session and handles rollback on error",
+        "GET /health returns 200 with JSON {\"status\": \"ok\", \"version\": \"<from pyproject.toml>\"}",
+        "GET /health/ready returns 200 {\"status\": \"ok\"} when DB is reachable (SELECT 1), or 503 {\"status\": \"unavailable\", \"detail\": \"<error>\"} when not",
+        "Both health endpoints are unauthenticated and excluded from OpenAPI auth schemes",
+        "src/backend/app/errors.py defines: InfraHubError(Exception), NotFoundError(404), ForbiddenError(403), QuotaExceededError(409, code=QUOTA_EXCEEDED), ConflictError(409), ValidationError(422), UnauthorizedError(401)",
+        "A global exception handler converts InfraHubError subclasses to {\"error\": {\"code\": \"...\", \"message\": \"...\", \"request_id\": \"...\"}} with correct HTTP status",
+        "Request ID is generated per-request (UUID4) and included in error responses and a X-Request-ID response header",
+        "uvicorn can start: cd src/backend && uvicorn app.main:app --reload exits 0",
+        "Unit tests cover: GET /health returns 200, GET /health/ready returns 503 when DB unavailable, error handler returns correct shape for each error subclass"
+      ],
+      "technicalNotes": "Use FastAPI's app.exception_handler() for InfraHubError. Generate request_id via middleware that sets a contextvars.ContextVar. The lifespan should call async_engine.dispose() on shutdown. Health router must be included with prefix='' (no /api/v1 prefix). Read version from importlib.metadata.version('infrahub'). Use pytest-asyncio with asyncio_mode='auto' in pyproject.toml [tool.pytest.ini_options]. Use httpx AsyncClient for test client.",
+      "estimatedComplexity": "M",
+      "dependencies": [
+        "STORY-001"
+      ],
+      "tags": [
+        "backend",
+        "fastapi",
+        "infrastructure",
+        "health"
+      ]
+    },
+    {
+      "id": "STORY-003",
+      "title": "LDAP auth + JWT middleware",
+      "status": "pending",
+      "priority": "high",
+      "type": "feature",
+      "description": "Implement the authentication layer: LDAP bind for credential verification, LDAP group membership to role/scope mapping, JWT token issuance (HS256, 15-min expiry, no refresh), and a FastAPI dependency for enforcing authentication on protected routes.",
+      "acceptanceCriteria": [
+        "POST /api/v1/auth/login accepts {\"username\": \"...\", \"password\": \"...\"} and returns {\"access_token\": \"...\", \"token_type\": \"bearer\", \"expires_in\": 900}",
+        "Login performs an LDAP bind with the user's credentials (not the service account bind), then fetches the user's group memberships",
+        "LDAP group CN mapping: infrahub-center-admins → role=center_admin scope_id=null; infrahub-field-admins-<field_id> → role=field_admin scope_id=field_id; infrahub-dept-admins-<dept_id> → role=dept_admin scope_id=dept_id; infrahub-team-leads-<team_id> → role=team_lead scope_id=team_id",
+        "JWT Claims dataclass has fields: sub (str), role (str), scope_id (str|None), exp (int)",
+        "JWT uses HS256 with JWT_SECRET from AppSettings; expiry is exactly 15 minutes from issuance",
+        "src/backend/app/auth/ldap_client.py defines LDAPClient ABC with authenticate(username, password) -> list[str] (group CNs) and a RealLDAPClient implementation",
+        "src/backend/app/auth/jwt.py exports create_token(claims: Claims) -> str and verify_token(token: str) -> Claims; verify_token raises UnauthorizedError on invalid/expired token",
+        "A get_current_user FastAPI dependency returns Claims; it raises UnauthorizedError if no Bearer token present or token invalid",
+        "POST /api/v1/auth/login returns 401 with code=INVALID_CREDENTIALS if LDAP bind fails",
+        "POST /api/v1/auth/login returns 403 with code=NO_ROLE_ASSIGNED if user has no infrahub-* group",
+        "Unit tests use a MockLDAPClient to test: successful login, wrong password (401), no group (403), expired token (401), valid token decoding"
+      ],
+      "technicalNotes": "Use python-ldap (ldap3 library) for LDAP. The LDAPClient ABC should be injected via FastAPI Depends so tests can swap in MockLDAPClient. LDAP config comes from AppSettings: LDAP_HOST, LDAP_PORT, LDAP_USE_SSL, LDAP_BIND_DN (service account for group search), LDAP_BIND_PASSWORD, LDAP_BASE_DN. After user bind succeeds, re-bind as service account to search cn=<username> and fetch memberOf attribute. Use python-jose for JWT. Do NOT implement refresh tokens.",
+      "estimatedComplexity": "L",
+      "dependencies": [
+        "STORY-002"
+      ],
+      "tags": [
+        "auth",
+        "ldap",
+        "jwt",
+        "security"
+      ]
+    },
+    {
+      "id": "STORY-004",
+      "title": "External server API sync + server inventory endpoints",
+      "status": "pending",
+      "priority": "high",
+      "type": "feature",
+      "description": "Implement the server inventory subsystem: a background sync task that polls the external bare-metal API and upserts servers into the DB, an APScheduler job that runs every SYNC_INTERVAL_MINUTES, a manual trigger endpoint, and paginated read endpoints for the server inventory.",
+      "acceptanceCriteria": [
+        "src/backend/app/sync/server_sync.py implements sync_servers(session, http_client) that calls EXTERNAL_SERVER_API_URL, upserts servers, marks missing ones as status=offline, returns {synced: int, updated: int, marked_offline: int}",
+        "Performance tier classification: if server.cpu >= PERFORMANCE_TIER_CPU_THRESHOLD → high_performance, else regular",
+        "POST /api/v1/admin/sync/servers (requires role=center_admin) triggers sync_servers and returns the result dict",
+        "APScheduler AsyncIOScheduler starts in app lifespan and runs sync_servers every SYNC_INTERVAL_MINUTES",
+        "GET /api/v1/servers?site=&performance_tier=&status=&page=&page_size= returns paginated list with pagination metadata {page, page_size, total, has_next_page}",
+        "GET /api/v1/servers/:id returns a single server or 404 NotFoundError",
+        "Server response schema includes all columns from the servers table",
+        "src/backend/app/repositories/server_repo.py handles all DB access for servers (list_servers with filters, get_by_id, upsert_from_external)",
+        "The sync function uses httpx.AsyncClient with timeout=EXTERNAL_API_TIMEOUT_SECONDS; it never raises on individual server failures (logs warning and continues)",
+        "Unit tests mock the external HTTP call and test: new server inserted, existing server updated, server missing from API marked offline, performance tier classification logic",
+        "Integration test (skipped if no DB): verifies upsert idempotency — running sync twice with same data yields same DB state"
+      ],
+      "technicalNotes": "External API is assumed to return a JSON array of server objects. Map vendor fields to our schema in server_sync.py. The httpx.AsyncClient should be created in lifespan and shared. The APScheduler job passes the client and a DB session factory. Since this is air-gapped, use httpx not requests, and never call any external URL except EXTERNAL_SERVER_API_URL. Use SELECT ... WHERE name = :name FOR UPDATE in upsert to prevent race conditions.",
+      "estimatedComplexity": "L",
+      "dependencies": [
+        "STORY-003"
+      ],
+      "tags": [
+        "servers",
+        "sync",
+        "background-tasks",
+        "api"
+      ]
+    },
+    {
+      "id": "STORY-005",
+      "title": "Hierarchical allocation API (server assign, quota CRUD, swap)",
+      "status": "pending",
+      "priority": "high",
+      "type": "feature",
+      "description": "Implement the full hierarchical allocation API: center_admin assigns servers to fields, field_admin sets CPU/RAM quotas for departments, dept_admin sets CPU/RAM quotas for teams, and center_admin can swap a server between fields. The allocation invariant (cpu_used + requested <= cpu_limit) must be enforced atomically at every level.",
+      "acceptanceCriteria": [
+        "POST /api/v1/allocations/servers {server_id, field_id} — center_admin only — assigns server to field; returns 409 ConflictError if server already assigned",
+        "DELETE /api/v1/allocations/servers/:id — center_admin only — removes server from field; returns 409 if any department under that field still has quota > 0",
+        "POST /api/v1/allocations/servers/swap {server_id, from_field_id, to_field_id} — center_admin only — atomic swap: removes from source field, assigns to target field in single transaction",
+        "POST /api/v1/allocations/department-quota {field_id, dept_id, site, cpu_limit, ram_gb_limit} — field_admin (scope_id=field_id) — creates quota; enforces that sum of all dept quotas for that field+site does not exceed total server CPU/RAM assigned to that field at that site",
+        "PUT /api/v1/allocations/department-quota/:id {cpu_limit, ram_gb_limit} — field_admin — updates quota; same invariant check; returns 409 QuotaExceededError if reducing below cpu_used",
+        "POST /api/v1/allocations/team-quota {dept_id, team_id, site, cpu_limit, ram_gb_limit} — dept_admin (scope_id=dept_id) — creates quota; enforces sum of team quotas <= dept cpu_limit/ram_gb_limit",
+        "PUT /api/v1/allocations/team-quota/:id {cpu_limit, ram_gb_limit} — dept_admin — updates; same invariant",
+        "GET /api/v1/allocations/tree — returns the full allocation tree scoped by role: center_admin sees all, field_admin sees their field, dept_admin sees their dept, team_lead sees their team",
+        "All write operations use SELECT ... FOR UPDATE on quota rows to prevent race conditions",
+        "src/backend/app/services/allocation_service.py enforces all business rules; repositories only do DB access",
+        "Unit tests cover: successful allocation, quota exceeded returns 409, forbidden role returns 403, swap atomicity (rollback if target field assign fails)"
+      ],
+      "technicalNotes": "The allocation invariant at field level is computed as: sum of all servers' cpu assigned to that field (from field_server_allocations JOIN servers) is the ceiling; departments' cpu_limit sum must not exceed it. At dept level: sum of team_quota cpu_limit for that dept+site must not exceed dept's cpu_limit. Use SELECT FOR UPDATE in the same transaction as the INSERT/UPDATE. The tree endpoint should be a single query with JOINs, not N+1 queries. Role enforcement: check claims.role and claims.scope_id in service layer, raise ForbiddenError if mismatch.",
+      "estimatedComplexity": "XL",
+      "dependencies": [
+        "STORY-004"
+      ],
+      "tags": [
+        "allocation",
+        "quota",
+        "rbac",
+        "api"
+      ]
+    },
+    {
+      "id": "STORY-006",
+      "title": "Project provisioning via Helm + ArgoCD",
+      "status": "pending",
+      "priority": "high",
+      "type": "feature",
+      "description": "Implement project (Kubernetes namespace) provisioning: the POST /api/v1/projects endpoint that validates quota, creates the DB record, then invokes HelmProvisioner to commit a namespace entry to the Helm chart Git repo, push to GitLab, and trigger an ArgoCD sync. A background poller checks ArgoCD until the namespace is active or times out.",
+      "acceptanceCriteria": [
+        "POST /api/v1/projects {name, site, sla_type, performance_tier} — team_lead (scope_id=team_id) — creates project",
+        "SLA → resource quota mapping: bronze/regular=2CPU/4Gi, bronze/hp=4CPU/8Gi, silver/regular=4CPU/16Gi, silver/hp=8CPU/32Gi, gold/regular=8CPU/32Gi, gold/hp=16CPU/64Gi",
+        "Before inserting: assert team's cpu_used + required <= cpu_limit at the team's site; returns 409 QuotaExceededError otherwise",
+        "Transaction: INSERT project (status=provisioning) + UPDATE team_quota cpu_used/ram_gb_used in single transaction",
+        "namespace_name is generated as <team_id>-<project_name> (sanitized: lowercase, alphanumeric + hyphens, max 63 chars)",
+        "HelmProvisioner.provision(project) adds entry to src/helm/values.yaml, git commits, git pushes to GitLab, then calls ArgoCD sync API",
+        "src/backend/app/helm/provisioner.py defines HelmProvisioner ABC with provision(project) and a GitArgoProvisioner implementation",
+        "Background asyncio task polls ArgoCD GET /api/v1/applications/{ARGOCD_APP_NAME} every 10 seconds for up to 5 minutes; on Synced+Healthy → UPDATE project status=active; on timeout → UPDATE project status=failed + ROLLBACK team quota usage",
+        "GET /api/v1/projects returns list scoped by role (team_lead sees own team's projects, higher roles see more)",
+        "GET /api/v1/projects/:id returns single project with current status",
+        "DELETE /api/v1/projects/:id — team_lead — sets status=deleting, decrements quota",
+        "Unit tests mock HelmProvisioner and ArgoCD calls; test quota enforcement, namespace name generation, status polling logic"
+      ],
+      "technicalNotes": "HelmProvisioner uses HELM_GIT_REPO_PATH (a local clone of the Helm chart repo mounted in the container). Git operations use subprocess calls to git CLI (not gitpython). ArgoCD API calls use httpx with ARGOCD_TOKEN in Authorization header. The background poller must run as an asyncio task (not blocking). If git push fails, rollback the DB transaction. The Helm values.yaml format for namespaces: namespaces: [{name: ..., teamId: ..., resourceQuota: {cpu: ..., memory: ...}}]. Do NOT make any external HTTP calls except to ARGOCD_URL and GitLab (git push).",
+      "estimatedComplexity": "XL",
+      "dependencies": [
+        "STORY-005"
+      ],
+      "tags": [
+        "projects",
+        "helm",
+        "argocd",
+        "provisioning",
+        "kubernetes"
+      ]
+    },
+    {
+      "id": "STORY-007",
+      "title": "React dashboard (login, allocation tree, server table, role-scoped nav)",
+      "status": "pending",
+      "priority": "high",
+      "type": "feature",
+      "description": "Build the React 18 + TypeScript frontend: login page, sidebar with role-scoped navigation, allocation tree with usage bars, server inventory table, and project list with status badges. Uses React Query for data fetching, Zustand for auth state, and Vite for bundling.",
+      "acceptanceCriteria": [
+        "src/frontend/src/pages/LoginPage.tsx: username/password form, calls POST /api/v1/auth/login, stores token in Zustand auth store (memory only — no localStorage)",
+        "Auth store (src/frontend/src/store/auth.ts) holds {token: string|null, claims: Claims|null}; Claims matches JWT payload {sub, role, scope_id, exp}",
+        "Sidebar renders nav items scoped by role: center_admin sees all sections; field_admin sees Servers + Allocations; dept_admin sees Allocations; team_lead sees Projects",
+        "src/frontend/src/pages/DashboardPage.tsx: summary cards showing total servers, total active projects, quota utilization %",
+        "src/frontend/src/components/allocation/AllocationTree.tsx: renders the tree from GET /api/v1/allocations/tree; each node shows name, cpu_used/cpu_limit as a usage bar",
+        "src/frontend/src/pages/ServersPage.tsx: paginated table of servers with columns: name, site, performance_tier, cpu, ram_gb, status; supports filtering by site and performance_tier",
+        "src/frontend/src/pages/ProjectsPage.tsx: list of projects with status badge (provisioning=yellow, active=green, failed=red, deleting=grey); 'New Project' button opens ProjectWizard",
+        "ProjectWizard (multi-step form): step 1 select site, step 2 select sla_type + performance_tier (shows resource quota preview), step 3 enter name and confirm; submits POST /api/v1/projects",
+        "All API calls include Authorization: Bearer <token> header; on 401 response, clear auth store and redirect to login",
+        "src/frontend/src/api/ contains typed fetch wrappers for each domain (auth, allocations, servers, projects)",
+        "Vitest unit tests cover: auth store set/clear, AllocationTree renders correct node count, LoginPage submits credentials and stores token on success"
+      ],
+      "technicalNotes": "Use Vite + React 18 + TypeScript. Use @tanstack/react-query v5 for server state. Use zustand v4 for auth store. Use React Router v6 for routing. Token is kept in memory only (Zustand store) — never in localStorage/sessionStorage (security requirement for air-gapped env). Use native fetch (not axios). The vite.config.ts must proxy /api requests to http://localhost:8000 for local dev. No CSS framework is mandated — use CSS modules or plain CSS.",
+      "estimatedComplexity": "XL",
+      "dependencies": [
+        "STORY-003"
+      ],
+      "tags": [
+        "frontend",
+        "react",
+        "typescript",
+        "ui"
+      ]
+    },
+    {
+      "id": "STORY-008",
+      "title": "CPU tier calculator (API endpoint + React widget)",
+      "status": "pending",
+      "priority": "medium",
+      "type": "feature",
+      "description": "Implement the CPU tier calculator: a backend endpoint that converts CPU counts between regular and high_performance tiers using the configured ratio, and a React widget on the dashboard that lets users interactively convert CPU values.",
+      "acceptanceCriteria": [
+        "GET /api/v1/calculator/cpu-conversion returns {ratio: <CPU_HP_TO_REGULAR_RATIO>, description: \"1 high_performance CPU = <ratio> regular CPUs\"}",
+        "POST /api/v1/calculator/convert {cpu_count: int, from_tier: 'regular'|'high_performance', to_tier: 'regular'|'high_performance'} returns {input_cpu: int, output_cpu: float, from_tier: str, to_tier: str, ratio_used: float}",
+        "Conversion logic: hp_to_regular = cpu_count * ratio; regular_to_hp = cpu_count / ratio (rounded up to nearest 0.5)",
+        "Returns 422 ValidationError if cpu_count <= 0 or from_tier == to_tier",
+        "CPU_HP_TO_REGULAR_RATIO is read from AppSettings (default 2.0)",
+        "src/backend/app/services/calculator_service.py contains the conversion logic (no DB access needed)",
+        "src/frontend/src/components/calculator/CalculatorWidget.tsx: two inputs (cpu_count, from_tier dropdown), result display, calls POST /api/v1/calculator/convert on change",
+        "CalculatorWidget is embedded in DashboardPage",
+        "Unit tests: convert 8 hp → 16 regular (ratio 2.0), convert 8 regular → 4 hp, from_tier==to_tier returns 422, cpu_count=0 returns 422"
+      ],
+      "technicalNotes": "This is a simple stateless calculation — no DB access. The calculator router should not require authentication (useful for planning before login). The React widget should debounce input changes (300ms) to avoid excessive API calls. Rounding rule for regular→hp: ceil(cpu_count / ratio * 2) / 2 gives nearest 0.5.",
+      "estimatedComplexity": "S",
+      "dependencies": [
+        "STORY-007"
+      ],
+      "tags": [
+        "calculator",
+        "api",
+        "frontend"
+      ]
+    }
+  ]
+}
