@@ -1,0 +1,70 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git:*)",
+      "Bash(npm:*)",
+      "Bash(yarn:*)",
+      "Bash(pnpm:*)",
+      "Bash(bun:*)",
+      "Bash(npx:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(echo:*)",
+      "Bash(mkdir:*)",
+      "Bash(cp:*)",
+      "Bash(mv:*)",
+      "Bash(chmod:*)",
+      "Bash(jq:*)",
+      "Bash(curl:*)",
+      "Bash(glab:*)",
+      "Bash(pip:*)",
+      "Bash(pip3:*)",
+      "Bash(python3:*)",
+      "Bash(uvicorn:*)",
+      "Bash(alembic:*)",
+      "Bash(pytest:*)",
+      "Bash(ruff:*)",
+      "Bash(docker:*)",
+      "Bash(docker-compose:*)",
+      "Bash(kubectl:*)",
+      "Bash(argocd:*)",
+      "Bash(bash ralph/run.sh*)"
+    ],
+    "deny": [
+      "Bash(rm -rf /*)",
+      "Bash(git push --force origin main)",
+      "Bash(git push --force origin production)",
+      "Bash(git push -f origin main)",
+      "Bash(git push -f origin production)",
+      "Bash(DROP TABLE*)",
+      "Bash(sudo rm:*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/post-edit-lint.sh"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pre-push-guard.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "env": {
+    "INFRAHUB_PROJECT": "infrahub"
+  }
+}
