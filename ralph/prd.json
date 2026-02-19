@@ -35,7 +35,7 @@
     {
       "id": "STORY-002",
       "title": "FastAPI skeleton, config, health endpoints, error hierarchy",
-      "status": "pending",
+      "status": "done",
       "priority": "high",
       "type": "feature",
       "description": "Build the FastAPI application skeleton: app factory with lifespan, AsyncEngine + session factory, health endpoints, and the complete InfraHub error hierarchy with exception handlers. This is the foundation all other stories build on.",
