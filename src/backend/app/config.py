@@ -44,3 +44,6 @@ class AppSettings(BaseSettings):
 
     # CPU tier conversion ratio
     CPU_HP_TO_REGULAR_RATIO: float = 2.0
+
+
+settings = AppSettings()

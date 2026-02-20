@@ -19,7 +19,7 @@ PRD_FILE="${SCRIPT_DIR}/prd.json"
 PROMPT_FILE="${SCRIPT_DIR}/prompt.md"
 LOGS_DIR="${SCRIPT_DIR}/logs"
 DEFAULT_MODEL="claude-sonnet-4-6"
-MAX_TURNS=50
+MAX_TURNS=200
 
 # ─── Argument Parsing ──────────────────────────────────────────────────────────
 
