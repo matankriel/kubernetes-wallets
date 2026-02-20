@@ -87,13 +87,15 @@ class TestAppSettings:
     def test_app_settings_requires_db_url(self):
         """AppSettings must raise ValidationError if DB_URL is missing."""
         import pydantic
+        # Pre-import so the module-level singleton doesn't run during env removal
+        from app.config import AppSettings  # noqa: F401 (ensure module is cached)
+
         # Remove DB_URL and JWT_SECRET from env to test fail-fast behavior
         env_backup = {}
         for key in ("DB_URL", "JWT_SECRET"):
             env_backup[key] = os.environ.pop(key, None)
 
         try:
-            from app.config import AppSettings
             with pytest.raises((pydantic.ValidationError, Exception)):
                 AppSettings()
         finally:

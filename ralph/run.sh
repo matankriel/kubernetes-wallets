@@ -217,6 +217,7 @@ EOF
       --system-prompt-file "$PROMPT_FILE" \
       --max-turns "$MAX_TURNS" \
       --model "$MODEL" \
+      --dangerously-skip-permissions \
       2>&1
   )" || exit_code=$?
 

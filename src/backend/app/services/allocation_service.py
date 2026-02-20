@@ -6,10 +6,12 @@ Invariant: cpu_used + requested <= cpu_limit at every level.
 All quota reads that precede a write use SELECT FOR UPDATE (via repository).
 """
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.jwt import Claims
 from app.errors import ConflictError, ForbiddenError, QuotaExceededError
+from app.models.org import Field
 from app.repositories.allocation_repo import AllocationRepository
 from app.schemas.allocation import (
     AllocationTreeResponse,
@@ -262,11 +264,7 @@ class AllocationService:
 
         for center in centers:
             fields_result = await self.session.execute(
-                __import__("sqlalchemy", fromlist=["select"]).select(
-                    __import__("app.models.org", fromlist=["Field"]).Field
-                ).where(
-                    __import__("app.models.org", fromlist=["Field"]).Field.center_id == center.id
-                )
+                select(Field).where(Field.center_id == center.id)
             )
             fields = list(fields_result.scalars().all())
 

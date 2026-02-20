@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.env
+*.egg
+
+# Node / Frontend
+node_modules/
+dist/
+.vite/
+coverage/
+
+# Logs
+ralph/logs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
