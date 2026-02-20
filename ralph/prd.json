@@ -98,7 +98,7 @@
     {
       "id": "STORY-004",
       "title": "External server API sync + server inventory endpoints",
-      "status": "pending",
+      "status": "done",
       "priority": "high",
       "type": "feature",
       "description": "Implement the server inventory subsystem: a background sync task that polls the external bare-metal API and upserts servers into the DB, an APScheduler job that runs every SYNC_INTERVAL_MINUTES, a manual trigger endpoint, and paginated read endpoints for the server inventory.",

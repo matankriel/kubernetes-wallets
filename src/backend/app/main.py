@@ -6,18 +6,40 @@ Entry point: uvicorn app.main:app
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+import httpx
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from app.database import async_engine
+from app.config import settings
+from app.database import AsyncSessionLocal, async_engine
 from app.errors import InfraHubError
 from app.middleware import RequestIDMiddleware, get_request_id
-from app.routers import auth, health
+from app.routers import auth, health, servers
+from app.sync.server_sync import sync_servers
+
+
+async def _scheduled_sync(http_client: httpx.AsyncClient) -> None:
+    async with AsyncSessionLocal() as session:
+        await sync_servers(session, http_client)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    http_client = httpx.AsyncClient(timeout=settings.EXTERNAL_API_TIMEOUT_SECONDS)
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(
+        _scheduled_sync,
+        "interval",
+        minutes=settings.SYNC_INTERVAL_MINUTES,
+        args=[http_client],
+    )
+    scheduler.start()
+
     yield
+
+    scheduler.shutdown(wait=False)
+    await http_client.aclose()
     await async_engine.dispose()
 
 
@@ -43,3 +65,4 @@ async def infrahub_error_handler(request: Request, exc: InfraHubError) -> JSONRe
 
 app.include_router(health.router)
 app.include_router(auth.router)
+app.include_router(servers.router)
