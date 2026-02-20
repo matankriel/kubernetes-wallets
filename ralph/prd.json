@@ -162,7 +162,7 @@
     {
       "id": "STORY-006",
       "title": "Project provisioning via Helm + ArgoCD",
-      "status": "pending",
+      "status": "done",
       "priority": "high",
       "type": "feature",
       "description": "Implement project (Kubernetes namespace) provisioning: the POST /api/v1/projects endpoint that validates quota, creates the DB record, then invokes HelmProvisioner to commit a namespace entry to the Helm chart Git repo, push to GitLab, and trigger an ArgoCD sync. A background poller checks ArgoCD until the namespace is active or times out.",
