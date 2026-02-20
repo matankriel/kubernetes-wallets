@@ -15,7 +15,7 @@ from app.config import settings
 from app.database import AsyncSessionLocal, async_engine
 from app.errors import InfraHubError
 from app.middleware import RequestIDMiddleware, get_request_id
-from app.routers import allocations, auth, health, projects, servers
+from app.routers import allocations, auth, calculator, health, projects, servers
 from app.sync.server_sync import sync_servers
 
 
@@ -68,3 +68,4 @@ app.include_router(auth.router)
 app.include_router(servers.router)
 app.include_router(allocations.router)
 app.include_router(projects.router)
+app.include_router(calculator.router)

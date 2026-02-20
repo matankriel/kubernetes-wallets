@@ -196,7 +196,7 @@
     {
       "id": "STORY-007",
       "title": "React dashboard (login, allocation tree, server table, role-scoped nav)",
-      "status": "pending",
+      "status": "done",
       "priority": "high",
       "type": "feature",
       "description": "Build the React 18 + TypeScript frontend: login page, sidebar with role-scoped navigation, allocation tree with usage bars, server inventory table, and project list with status badges. Uses React Query for data fetching, Zustand for auth state, and Vite for bundling.",
@@ -228,7 +228,7 @@
     {
       "id": "STORY-008",
       "title": "CPU tier calculator (API endpoint + React widget)",
-      "status": "pending",
+      "status": "done",
       "priority": "medium",
       "type": "feature",
       "description": "Implement the CPU tier calculator: a backend endpoint that converts CPU counts between regular and high_performance tiers using the configured ratio, and a React widget on the dashboard that lets users interactively convert CPU values.",
