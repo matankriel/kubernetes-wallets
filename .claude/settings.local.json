@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(chmod:*)",
+      "Bash(bash ralph/run.sh --dry-run --once)",
+      "Bash(bash ralph/run.sh --dry-run --story STORY-003)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}
