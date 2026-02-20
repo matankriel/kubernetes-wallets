@@ -15,7 +15,7 @@ from app.config import settings
 from app.database import AsyncSessionLocal, async_engine
 from app.errors import InfraHubError
 from app.middleware import RequestIDMiddleware, get_request_id
-from app.routers import auth, health, servers
+from app.routers import allocations, auth, health, servers
 from app.sync.server_sync import sync_servers
 
 
@@ -66,3 +66,4 @@ async def infrahub_error_handler(request: Request, exc: InfraHubError) -> JSONRe
 app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(servers.router)
+app.include_router(allocations.router)
