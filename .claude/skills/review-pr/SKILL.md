@@ -7,10 +7,6 @@ allowed-tools:
   - Read
   - Glob
   - Grep
-context:
-  - .claude/rules/security.md
-  - .claude/rules/code-style.md
-  - .claude/rules/testing.md
 ---
 
 # /review-pr Skill

@@ -6,9 +6,6 @@ allowed-tools:
   - Bash
   - Read
   - Glob
-context:
-  - .claude/rules/git.md
-  - .claude/rules/testing.md
 ---
 
 # /ship Skill

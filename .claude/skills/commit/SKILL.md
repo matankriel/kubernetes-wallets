@@ -6,8 +6,6 @@ allowed-tools:
   - Bash
   - Read
   - Glob
-context:
-  - .claude/rules/git.md
 ---
 
 # /commit Skill

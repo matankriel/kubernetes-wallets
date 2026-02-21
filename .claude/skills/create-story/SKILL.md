@@ -6,8 +6,6 @@ allowed-tools:
   - Read
   - Edit
   - Bash
-context:
-  - ralph/prd.json
 ---
 
 # /create-story Skill
