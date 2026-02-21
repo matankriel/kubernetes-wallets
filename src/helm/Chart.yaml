@@ -1,0 +1,6 @@
+apiVersion: v2
+name: infrahub-namespaces
+description: InfraHub managed namespace provisioner — creates Kubernetes Namespaces, ResourceQuotas, and RoleBindings for each InfraHub project.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

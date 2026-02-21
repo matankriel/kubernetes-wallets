@@ -1,0 +1,11 @@
+# Managed programmatically by HelmProvisioner.
+# DO NOT edit manually in production — every POST /api/v1/projects appends
+# an entry here, git-commits, and triggers an ArgoCD sync.
+#
+# Schema for each entry:
+#   name:         Kubernetes namespace name (<=63 chars, alphanumeric + hyphens)
+#   teamId:       UUID of the owning team (used for RoleBinding subject)
+#   resourceQuota:
+#     cpu:        CPU limit string (e.g. "4")
+#     memory:     Memory limit string (e.g. "16Gi")
+namespaces: []

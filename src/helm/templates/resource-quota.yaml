@@ -1,0 +1,14 @@
+{{- range .Values.namespaces }}
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: infrahub-quota
+  namespace: {{ .name }}
+spec:
+  hard:
+    requests.cpu: {{ .resourceQuota.cpu | quote }}
+    requests.memory: {{ .resourceQuota.memory | quote }}
+    limits.cpu: {{ .resourceQuota.cpu | quote }}
+    limits.memory: {{ .resourceQuota.memory | quote }}
+---
+{{- end }}

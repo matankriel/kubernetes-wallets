@@ -1,0 +1,10 @@
+{{- range .Values.namespaces }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .name }}
+  labels:
+    infrahub/team-id: {{ .teamId | quote }}
+    app.kubernetes.io/managed-by: infrahub
+---
+{{- end }}

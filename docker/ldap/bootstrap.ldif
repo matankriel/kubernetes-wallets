@@ -1,0 +1,79 @@
+# InfraHub local-dev LDAP seed data.
+#
+# Loaded via LDAP_CUSTOM_LDIF_DIR (bitnami/openldap) AFTER the memberOf
+# overlay is configured, so group `member` writes automatically propagate
+# the `memberOf` attribute back to each user entry.
+#
+# LDAP_BASE_DN in docker-compose is ou=users,dc=corp,dc=local, so
+# RealLDAPClient builds the user bind DN as:
+#   cn=<username>,ou=users,dc=corp,dc=local
+#
+# Test credentials (all passwords: "password"):
+#   centeradmin  →  center_admin  (global)
+#   fieldadmin1  →  field_admin   (scope_id from LDAP group name suffix)
+#   deptadmin1   →  dept_admin
+#   teamlead1    →  team_lead
+
+# ── Org units ──────────────────────────────────────────────────────────────
+dn: ou=users,dc=corp,dc=local
+objectClass: organizationalUnit
+ou: users
+
+dn: ou=groups,dc=corp,dc=local
+objectClass: organizationalUnit
+ou: groups
+
+# ── Test users ─────────────────────────────────────────────────────────────
+dn: cn=centeradmin,ou=users,dc=corp,dc=local
+objectClass: inetOrgPerson
+cn: centeradmin
+sn: Admin
+userPassword: password
+
+dn: cn=fieldadmin1,ou=users,dc=corp,dc=local
+objectClass: inetOrgPerson
+cn: fieldadmin1
+sn: FieldAdmin
+userPassword: password
+
+dn: cn=deptadmin1,ou=users,dc=corp,dc=local
+objectClass: inetOrgPerson
+cn: deptadmin1
+sn: DeptAdmin
+userPassword: password
+
+dn: cn=teamlead1,ou=users,dc=corp,dc=local
+objectClass: inetOrgPerson
+cn: teamlead1
+sn: TeamLead
+userPassword: password
+
+# ── InfraHub LDAP groups ───────────────────────────────────────────────────
+# Group CNs must match the patterns the auth router maps to roles:
+#   infrahub-center-admins              → center_admin, scope_id=None
+#   infrahub-field-admins-<field_id>    → field_admin,  scope_id=<field_id>
+#   infrahub-dept-admins-<dept_id>      → dept_admin,   scope_id=<dept_id>
+#   infrahub-team-leads-<team_id>       → team_lead,    scope_id=<team_id>
+#
+# The field/dept/team IDs below are placeholders; replace with real UUIDs
+# from your database after seeding org hierarchy rows.
+
+dn: cn=infrahub-center-admins,ou=groups,dc=corp,dc=local
+objectClass: groupOfNames
+cn: infrahub-center-admins
+member: cn=centeradmin,ou=users,dc=corp,dc=local
+
+dn: cn=infrahub-field-admins-00000000-0000-0000-0000-000000000001,ou=groups,dc=corp,dc=local
+objectClass: groupOfNames
+cn: infrahub-field-admins-00000000-0000-0000-0000-000000000001
+member: cn=fieldadmin1,ou=users,dc=corp,dc=local
+
+dn: cn=infrahub-dept-admins-00000000-0000-0000-0000-000000000002,ou=groups,dc=corp,dc=local
+objectClass: groupOfNames
+cn: infrahub-dept-admins-00000000-0000-0000-0000-000000000002
+member: cn=deptadmin1,ou=users,dc=corp,dc=local
+
+dn: cn=infrahub-team-leads-00000000-0000-0000-0000-000000000003,ou=groups,dc=corp,dc=local
+objectClass: groupOfNames
+cn: infrahub-team-leads-00000000-0000-0000-0000-000000000003
+member: cn=teamlead1,ou=users,dc=corp,dc=local

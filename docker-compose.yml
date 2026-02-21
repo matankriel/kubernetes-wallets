@@ -1,0 +1,92 @@
+services:
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: infrahub
+      POSTGRES_PASSWORD: infrahub
+      POSTGRES_DB: infrahub
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U infrahub"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── OpenLDAP ────────────────────────────────────────────────────────────────
+  # bitnami/openldap is used because it ships multi-arch images (amd64 + arm64),
+  # which is required for Apple Silicon Macs.
+  #
+  # memberOf overlay:
+  #   LDAP_CUSTOM_SCHEMA_FILE loads memberof-overlay.ldif via
+  #   `ldapmodify -Y EXTERNAL -H ldapi:///` which has cn=config write access.
+  #   This enables the memberOf overlay so that group membership is automatically
+  #   propagated to user entries — required by RealLDAPClient.authenticate().
+  #
+  # Bootstrap data:
+  #   LDAP_CUSTOM_LDIF_DIR loads bootstrap.ldif which creates OUs, test users,
+  #   and InfraHub LDAP groups.  Loaded AFTER the overlay is configured, so the
+  #   memberOf values are written immediately when groups are created.
+  #
+  # Internal port is 1389 (bitnami runs as non-root); mapped to host 389.
+  ldap:
+    image: bitnami/openldap:2
+    environment:
+      LDAP_ADMIN_USERNAME: admin
+      LDAP_ADMIN_PASSWORD: admin
+      LDAP_ROOT: dc=corp,dc=local
+      LDAP_CUSTOM_SCHEMA_FILE: /schema/memberof-overlay.ldif
+      LDAP_CUSTOM_LDIF_DIR: /ldifs
+    volumes:
+      - ./docker/ldap/memberof-overlay.ldif:/schema/memberof-overlay.ldif:ro
+      - ./docker/ldap/bootstrap.ldif:/ldifs/bootstrap.ldif:ro
+    ports:
+      - "389:1389"
+
+  # ── FastAPI backend ─────────────────────────────────────────────────────────
+  # Environment variables here OVERRIDE any matching keys in the .env file,
+  # so docker-compose wiring (DB_URL, LDAP_*) is always correct regardless of
+  # what the developer has in their local .env.
+  backend:
+    build: ./src/backend
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DB_URL: postgresql+asyncpg://infrahub:infrahub@postgres:5432/infrahub
+      LDAP_HOST: ldap
+      LDAP_PORT: 1389
+      LDAP_USE_SSL: "false"
+      LDAP_BIND_DN: cn=admin,dc=corp,dc=local
+      LDAP_BIND_PASSWORD: admin
+      LDAP_BASE_DN: ou=users,dc=corp,dc=local
+      HELM_GIT_REPO_PATH: /app/helm-repo
+    volumes:
+      # Mount src/helm into the container so HelmProvisioner can write values.yaml
+      # and the entrypoint can initialise it as a local git repo.
+      - ./src/helm:/app/helm-repo
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ldap:
+        condition: service_started
+    ports:
+      - "8000:8000"
+
+  # ── React frontend ──────────────────────────────────────────────────────────
+  # Built with Node 20, served by nginx.  nginx proxies /api/* and /health to
+  # the backend container; everything else is served as static files with SPA
+  # fallback (index.html).
+  frontend:
+    build: ./src/frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
