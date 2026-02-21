@@ -2,10 +2,7 @@
 name: ship
 description: Full shipping pipeline — lint, test, commit with conventional format, push feature branch, and open a GitLab Merge Request. Stops at any failure.
 argument-hint: "[optional: mr description]"
-allowed-tools:
-  - Bash
-  - Read
-  - Glob
+allowed-tools: Bash, Read, Glob
 ---
 
 # /ship Skill

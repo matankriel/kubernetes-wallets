@@ -2,10 +2,7 @@
 name: create-story
 description: Interactively create a new story and append it to ralph/prd.json. Prompts for all required fields and shows a preview before writing.
 argument-hint: "[brief description]"
-allowed-tools:
-  - Read
-  - Edit
-  - Bash
+allowed-tools: Read, Edit, Bash
 ---
 
 # /create-story Skill

@@ -2,11 +2,7 @@
 name: review-pr
 description: Fetch a GitLab Merge Request diff using `glab` and perform a structured code review categorized by Security, Correctness, Quality, and Tests.
 argument-hint: "[mr-number]"
-allowed-tools:
-  - Bash
-  - Read
-  - Glob
-  - Grep
+allowed-tools: Bash, Read, Glob, Grep
 ---
 
 # /review-pr Skill

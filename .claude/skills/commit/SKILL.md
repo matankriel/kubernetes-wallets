@@ -2,10 +2,7 @@
 name: commit
 description: Run lint and tests, stage specific files, and create a conventional commit. Refuses to commit if lint or tests fail.
 argument-hint: "[optional: files to stage]"
-allowed-tools:
-  - Bash
-  - Read
-  - Glob
+allowed-tools: Bash, Read, Glob
 ---
 
 # /commit Skill
