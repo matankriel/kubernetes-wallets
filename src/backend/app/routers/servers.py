@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app.auth.dependencies import get_current_user
 from app.auth.jwt import Claims
+from app.auth.roles import is_super_admin
 from app.config import settings
 from app.database import AsyncSessionLocal, get_db
 from app.errors import ForbiddenError
@@ -67,8 +68,8 @@ async def get_server(
 async def trigger_sync(
     claims: Claims = Depends(get_current_user),
 ) -> SyncResult:
-    if claims.role != "center_admin":
-        raise ForbiddenError("Only center_admin can trigger server sync")
+    if not is_super_admin(claims):
+        raise ForbiddenError("Only center_admin or platform_admin can trigger server sync")
 
     async with AsyncSessionLocal() as session:
         async with httpx.AsyncClient(timeout=settings.EXTERNAL_API_TIMEOUT_SECONDS) as client:

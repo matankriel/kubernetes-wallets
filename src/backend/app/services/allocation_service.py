@@ -9,6 +9,7 @@ All quota reads that precede a write use SELECT FOR UPDATE (via repository).
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.jwt import Claims
+from app.auth.roles import is_super_admin
 from app.errors import ConflictError, ForbiddenError, QuotaExceededError
 from app.repositories.allocation_repo import AllocationRepository
 from app.schemas.allocation import (
@@ -33,8 +34,8 @@ class AllocationService:
     async def assign_server_to_field(
         self, claims: Claims, server_id: str, field_id: str
     ) -> FieldServerAllocationResponse:
-        if claims.role != "center_admin":
-            raise ForbiddenError("Only center_admin can assign servers to fields")
+        if not is_super_admin(claims):
+            raise ForbiddenError("Only center_admin or platform_admin can assign servers to fields")
 
         await self.repo.get_server(server_id)
         await self.repo.get_field(field_id)
@@ -49,8 +50,8 @@ class AllocationService:
     async def remove_server_from_field(
         self, claims: Claims, allocation_id: str
     ) -> None:
-        if claims.role != "center_admin":
-            raise ForbiddenError("Only center_admin can remove server allocations")
+        if not is_super_admin(claims):
+            raise ForbiddenError("Only center_admin or platform_admin can remove server allocations")
 
         async with self.session.begin():
             allocation = await self.repo.get_server_allocation_by_id(allocation_id)
@@ -63,8 +64,8 @@ class AllocationService:
     async def swap_server_between_fields(
         self, claims: Claims, server_id: str, from_field_id: str, to_field_id: str
     ) -> FieldServerAllocationResponse:
-        if claims.role != "center_admin":
-            raise ForbiddenError("Only center_admin can swap server allocations")
+        if not is_super_admin(claims):
+            raise ForbiddenError("Only center_admin or platform_admin can swap server allocations")
 
         await self.repo.get_field(from_field_id)
         await self.repo.get_field(to_field_id)
@@ -93,7 +94,7 @@ class AllocationService:
         cpu_limit: int,
         ram_gb_limit: int,
     ) -> DeptQuotaResponse:
-        if claims.role != "field_admin" or claims.scope_id != field_id:
+        if not (is_super_admin(claims) or (claims.role == "field_admin" and claims.scope_id == field_id)):
             raise ForbiddenError("Only field_admin scoped to this field can set department quotas")
 
         async with self.session.begin():
@@ -133,7 +134,7 @@ class AllocationService:
         async with self.session.begin():
             quota = await self.repo.get_dept_quota_by_id(quota_id)
 
-            if claims.role != "field_admin" or claims.scope_id != quota.field_id:
+            if not (is_super_admin(claims) or (claims.role == "field_admin" and claims.scope_id == quota.field_id)):
                 raise ForbiddenError("Only field_admin scoped to this field can update department quotas")
 
             if cpu_limit < quota.cpu_used:
@@ -178,7 +179,7 @@ class AllocationService:
         cpu_limit: int,
         ram_gb_limit: int,
     ) -> TeamQuotaResponse:
-        if claims.role != "dept_admin" or claims.scope_id != dept_id:
+        if not (is_super_admin(claims) or (claims.role == "dept_admin" and claims.scope_id == dept_id)):
             raise ForbiddenError("Only dept_admin scoped to this department can set team quotas")
 
         async with self.session.begin():
@@ -223,7 +224,7 @@ class AllocationService:
         async with self.session.begin():
             quota = await self.repo.get_team_quota_by_id(quota_id)
 
-            if claims.role != "dept_admin" or claims.scope_id != quota.department_id:
+            if not (is_super_admin(claims) or (claims.role == "dept_admin" and claims.scope_id == quota.department_id)):
                 raise ForbiddenError(
                     "Only dept_admin scoped to this department can update team quotas"
                 )
@@ -323,7 +324,7 @@ class AllocationService:
                     )
                 )
 
-            if field_nodes or claims.role == "center_admin":
+            if field_nodes or is_super_admin(claims):
                 result.append(
                     CenterNode(
                         center_id=center.id, center_name=center.name, fields=field_nodes

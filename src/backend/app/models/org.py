@@ -1,6 +1,7 @@
-"""SQLAlchemy ORM models for the org hierarchy: Center, Field, Department, Team."""
+"""SQLAlchemy ORM models for the org hierarchy: Center, Field, Department, Team, UserRole."""
 
-from sqlalchemy import ForeignKey, Text, UniqueConstraint, text
+from sqlalchemy import CheckConstraint, ForeignKey, Text, UniqueConstraint, text
+from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -146,3 +147,31 @@ class TeamQuotaAllocation(Base):
 
     department: Mapped[Department] = relationship("Department", back_populates="team_quotas")
     team: Mapped[Team] = relationship("Team", back_populates="team_quotas")
+
+
+class UserRole(Base):
+    """DB-based role override — takes precedence over LDAP group mapping on login.
+
+    center_admin is intentionally absent from the CHECK constraint; it is LDAP-only.
+    platform_admin is the DB-assignable superset of center_admin.
+    """
+
+    __tablename__ = "user_roles"
+    __table_args__ = (
+        UniqueConstraint("username", name="uq_user_roles_username"),
+        CheckConstraint(
+            "role IN ('platform_admin', 'field_admin', 'dept_admin', 'team_lead')",
+            name="ck_user_roles_role",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(
+        PG_UUID(as_uuid=False), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    username: Mapped[str] = mapped_column(Text, nullable=False, index=True)
+    role: Mapped[str] = mapped_column(Text, nullable=False)
+    scope_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    assigned_by: Mapped[str] = mapped_column(Text, nullable=False)
+    assigned_at: Mapped[str | None] = mapped_column(
+        TIMESTAMP(timezone=True), server_default=text("now()"), nullable=True
+    )

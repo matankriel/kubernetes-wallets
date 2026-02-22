@@ -3,6 +3,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import Layout from "./components/layout/Layout";
+import AdminPage from "./pages/AdminPage";
 import AllocationsPage from "./pages/AllocationsPage";
 import DashboardPage from "./pages/DashboardPage";
 import LoginPage from "./pages/LoginPage";
@@ -24,6 +25,7 @@ createRoot(document.getElementById("root")!).render(
             <Route path="/servers" element={<ServersPage />} />
             <Route path="/allocations" element={<AllocationsPage />} />
             <Route path="/projects" element={<ProjectsPage />} />
+            <Route path="/admin" element={<AdminPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
