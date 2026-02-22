@@ -253,6 +253,47 @@
         "api",
         "frontend"
       ]
+    },
+    {
+      "id": "STORY-009",
+      "title": "Platform admin role, admin management page, and org hierarchy CRUD",
+      "status": "pending",
+      "priority": "high",
+      "type": "feature",
+      "description": "Introduce a platform_admin role (global, scope_id=null) that is a superset of center_admin. platform_admin is bootstrapped via the infrahub-platform-admins LDAP group; all other role grants are managed in-app via a new user_roles DB table. The login flow checks user_roles first, falling back to LDAP group mapping. A new /admin page (platform_admin only) provides three panels: (1) org hierarchy editor — CRUD for Centers, Fields, Departments, Teams; (2) server assignment panel — assign unassigned servers to fields via inline dropdown; (3) user role manager — grant/revoke field_admin, dept_admin, team_lead, platform_admin to any LDAP username. All existing RBAC checks in allocation_service, project_service, and the servers router are updated to allow platform_admin with no scope restrictions.",
+      "acceptanceCriteria": [
+        "alembic revision 0007 creates user_roles (id UUID PK, username TEXT UNIQUE NOT NULL, role TEXT NOT NULL CHECK IN ('platform_admin','field_admin','dept_admin','team_lead'), scope_id TEXT NULL, assigned_by TEXT NOT NULL, assigned_at TIMESTAMPTZ DEFAULT now(), INDEX on username); downgrade drops table cleanly",
+        "POST /api/v1/auth/login for user in infrahub-platform-admins LDAP group returns JWT role=platform_admin scope_id=null",
+        "POST /api/v1/auth/login for user with user_roles DB record returns DB role and scope_id regardless of LDAP groups",
+        "DB role lookup precedes _map_groups_to_role(); fallback to LDAP if no DB record found",
+        "platform_admin can assign/remove/swap servers (center_admin-only endpoints) without ForbiddenError",
+        "platform_admin can POST /api/v1/admin/sync/servers without ForbiddenError",
+        "platform_admin can create/update dept quotas for any field_id without scope restriction",
+        "platform_admin can create/update team quotas for any dept_id without scope restriction",
+        "GET /api/v1/allocations/tree with role=platform_admin returns all centers and all fields (no filtering)",
+        "GET /api/v1/admin/user-roles returns list of UserRoleResponse; any non-platform_admin gets 403",
+        "POST /api/v1/admin/user-roles {username, role, scope_id} upserts user role; scope entity must exist or 422 returned; returns 201 UserRoleResponse",
+        "POST /api/v1/admin/user-roles with existing username replaces role (upsert semantics — no 409 conflict)",
+        "DELETE /api/v1/admin/user-roles/{username} removes role; next login falls back to LDAP groups",
+        "DELETE /api/v1/admin/user-roles/{own-username} returns 403 'Cannot revoke your own role'",
+        "POST /api/v1/admin/org/centers {name} returns 201; new center appears in GET /api/v1/allocations/tree",
+        "POST /api/v1/admin/org/fields {center_id, name, site} returns 201",
+        "POST /api/v1/admin/org/departments {field_id, name} returns 201",
+        "POST /api/v1/admin/org/teams {department_id, name, ldap_group_cn?} returns 201",
+        "PATCH /api/v1/admin/org/teams/{team_id} {name?, ldap_group_cn?} returns 200",
+        "DELETE org endpoints return 409 ConflictError if children exist (fields for center; depts for field; teams for dept; active projects for team)",
+        "Sidebar shows Admin nav item only when claims.role === 'platform_admin'; absent for all other roles",
+        "/admin route renders AdminPage for platform_admin; renders 403 message for other roles (defense in depth)",
+        "UserRoleManager table renders on load; Grant Role modal shows conditional scope select per role chosen; Revoke shows confirmation before API call",
+        "OrgHierarchyEditor renders org tree; Add Child shows inline form (not a modal); Delete shows confirmation before API call",
+        "ServerAssignmentPanel shows unassigned servers with Assign-to-Field dropdown; selecting a field immediately calls assign API and refreshes list",
+        "Unit tests: platform_admin login via DB override, platform_admin login via LDAP bootstrap group, cannot revoke own role, scope entity validation returns 422, platform_admin bypasses all RBAC checks in allocation_service, org delete ConflictError when children exist",
+        "All existing backend tests still pass after RBAC changes to allocation_service, project_service, servers router"
+      ],
+      "technicalNotes": "Login flow order: (1) LDAP bind to verify password, (2) AdminRepository.get_user_role(username) — if found use DB role/scope_id, (3) else _map_groups_to_role(group_cns) with new 'infrahub-platform-admins' first branch. center_admin stays LDAP-only — do NOT add center_admin to user_roles CHECK constraint. upsert_user_role must use INSERT ... ON CONFLICT (username) DO UPDATE SET role=EXCLUDED.role, scope_id=EXCLUDED.scope_id, assigned_by=EXCLUDED.assigned_by, assigned_at=now() to prevent race conditions. Extract _is_super_admin(claims) helper returning claims.role in ('center_admin', 'platform_admin') to avoid scattered string literals. For scoped bypasses: if claims.role == 'platform_admin': pass elif <scoped check>: raise ForbiddenError. New model in app/models/admin.py (not org.py). Register admin router in app/main.py under prefix /api/v1/admin. Frontend Claims type is already role: string — no type change needed. Scope select in Grant Role modal reuses data from GET /api/v1/allocations/tree. Implementation order: migration → ORM → repo → auth change + tests → schemas → service → router → RBAC updates (run full test suite) → frontend.",
+      "estimatedComplexity": "XL",
+      "dependencies": ["STORY-001", "STORY-002", "STORY-003", "STORY-005", "STORY-006", "STORY-007"],
+      "tags": ["platform-admin", "rbac", "admin-ui", "auth", "org-management"]
     }
   ]
 }

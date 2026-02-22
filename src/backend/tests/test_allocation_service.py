@@ -540,3 +540,87 @@ class TestUpdateTeamQuota:
 
         assert result.cpu_limit == 50
         assert result.ram_gb_limit == 100
+
+
+# ---------------------------------------------------------------------------
+# Allocation tree — layer-violation regression (fields must come from repo)
+# ---------------------------------------------------------------------------
+
+
+def _make_center(id: str = "c1", name: str = "HQ"):
+    obj = MagicMock()
+    obj.id = id
+    obj.name = name
+    return obj
+
+
+def _make_field(id: str, name: str = "Berlin", site: str = "berlin"):
+    obj = MagicMock()
+    obj.id = id
+    obj.name = name
+    obj.site = site
+    return obj
+
+
+class TestGetAllocationTreeFieldsAreFromRepo:
+    """Verify the layer fix: get_allocation_tree fetches fields via repo.get_fields_for_center,
+    not via raw session.execute."""
+
+    async def test_repo_get_fields_for_center_is_called(self):
+        svc, repo = _make_service()
+        repo.get_full_tree = AsyncMock(return_value=[_make_center(id="c1", name="HQ")])
+        repo.get_fields_for_center = AsyncMock(return_value=[_make_field(id="f1")])
+        repo.get_servers_for_field = AsyncMock(return_value=[])
+        repo.get_dept_quotas_for_field = AsyncMock(return_value=[])
+
+        result = await svc.get_allocation_tree(_claims("center_admin"))
+
+        repo.get_fields_for_center.assert_awaited_once_with("c1")
+        assert len(result.centers) == 1
+        assert len(result.centers[0].fields) == 1
+        assert result.centers[0].fields[0].field_id == "f1"
+
+    async def test_center_appears_with_empty_fields_for_center_admin(self):
+        """center_admin sees centers even when they have no fields."""
+        svc, repo = _make_service()
+        repo.get_full_tree = AsyncMock(return_value=[_make_center(id="c1", name="HQ")])
+        repo.get_fields_for_center = AsyncMock(return_value=[])
+        repo.get_servers_for_field = AsyncMock(return_value=[])
+        repo.get_dept_quotas_for_field = AsyncMock(return_value=[])
+
+        result = await svc.get_allocation_tree(_claims("center_admin"))
+
+        assert len(result.centers) == 1
+        assert len(result.centers[0].fields) == 0
+
+
+class TestGetAllocationTreeScopedVisibility:
+    """Verify field_admin only sees the field matching their scope_id after the repo refactor."""
+
+    async def test_field_admin_sees_only_own_field(self):
+        svc, repo = _make_service()
+        repo.get_full_tree = AsyncMock(return_value=[_make_center(id="c1")])
+        repo.get_fields_for_center = AsyncMock(
+            return_value=[_make_field(id="f1"), _make_field(id="f2")]
+        )
+        repo.get_servers_for_field = AsyncMock(return_value=[])
+        repo.get_dept_quotas_for_field = AsyncMock(return_value=[])
+
+        result = await svc.get_allocation_tree(_claims("field_admin", scope_id="f1"))
+
+        assert len(result.centers[0].fields) == 1
+        assert result.centers[0].fields[0].field_id == "f1"
+
+    async def test_field_admin_with_wrong_scope_sees_no_fields(self):
+        """field_admin whose scope_id matches no field gets an empty fields list."""
+        svc, repo = _make_service()
+        repo.get_full_tree = AsyncMock(return_value=[_make_center(id="c1")])
+        repo.get_fields_for_center = AsyncMock(
+            return_value=[_make_field(id="f1"), _make_field(id="f2")]
+        )
+        repo.get_servers_for_field = AsyncMock(return_value=[])
+        repo.get_dept_quotas_for_field = AsyncMock(return_value=[])
+
+        result = await svc.get_allocation_tree(_claims("field_admin", scope_id="f-other"))
+
+        assert len(result.centers) == 0

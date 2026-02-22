@@ -87,6 +87,7 @@ class TestAppSettings:
     def test_app_settings_requires_db_url(self):
         """AppSettings must raise ValidationError if DB_URL is missing."""
         import pydantic
+
         # Pre-import so the module-level singleton doesn't run during env removal
         from app.config import AppSettings  # noqa: F401 (ensure module is cached)
 

@@ -228,6 +228,12 @@ class AllocationRepository:
         result = await self.session.execute(select(Center))
         return list(result.scalars().all())
 
+    async def get_fields_for_center(self, center_id: str) -> list[Field]:
+        result = await self.session.execute(
+            select(Field).where(Field.center_id == center_id)
+        )
+        return list(result.scalars().all())
+
     async def get_dept_quotas_for_field(
         self, field_id: str
     ) -> list[DepartmentQuotaAllocation]:
