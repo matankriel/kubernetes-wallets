@@ -6,6 +6,7 @@ Covers: successful login, wrong password (401), no group (403),
 """
 
 import time
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -13,8 +14,10 @@ from httpx import ASGITransport, AsyncClient
 from app.auth.dependencies import get_current_user
 from app.auth.jwt import Claims, build_claims, create_token, verify_token
 from app.auth.ldap_client import LDAPClient
+from app.database import get_db
 from app.errors import UnauthorizedError
 from app.main import app
+from app.models.org import UserRole
 from app.routers.auth import get_ldap_client
 
 # ---------------------------------------------------------------------------
@@ -33,8 +36,26 @@ class MockLDAPClient(LDAPClient):
         return self._groups
 
 
-def make_client(ldap: LDAPClient) -> AsyncClient:
+def _mock_db_session(db_role_row: UserRole | None = None):
+    """Return an async generator that yields a mock session.
+
+    The mock session's execute() returns a result whose scalar_one_or_none()
+    returns db_role_row (None = no DB override; a UserRole = DB override wins).
+    """
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none = MagicMock(return_value=db_role_row)
+    session = MagicMock()
+    session.execute = AsyncMock(return_value=mock_result)
+
+    async def _get_db():
+        yield session
+
+    return _get_db
+
+
+def make_client(ldap: LDAPClient, db_role_row: UserRole | None = None) -> AsyncClient:
     app.dependency_overrides[get_ldap_client] = lambda: ldap
+    app.dependency_overrides[get_db] = _mock_db_session(db_role_row)
     return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
 
 
@@ -125,6 +146,50 @@ class TestLogin:
         claims = verify_token(response.json()["access_token"])
         assert claims.role == "center_admin"
         assert claims.scope_id is None
+
+    async def test_platform_admin_login_via_ldap_group(self):
+        ldap = MockLDAPClient(groups=["infrahub-platform-admins"])
+        async with make_client(ldap) as client:
+            response = await client.post(
+                "/api/v1/auth/login",
+                json={"username": "superadmin", "password": "secret"},
+            )
+
+        assert response.status_code == 200
+        claims = verify_token(response.json()["access_token"])
+        assert claims.role == "platform_admin"
+        assert claims.scope_id is None
+
+    async def test_platform_admin_wins_over_center_admin_ldap_group(self):
+        """When both platform-admins and center-admins groups are present, platform_admin wins."""
+        ldap = MockLDAPClient(groups=["infrahub-platform-admins", "infrahub-center-admins"])
+        async with make_client(ldap) as client:
+            response = await client.post(
+                "/api/v1/auth/login",
+                json={"username": "superadmin", "password": "secret"},
+            )
+
+        claims = verify_token(response.json()["access_token"])
+        assert claims.role == "platform_admin"
+
+    async def test_db_role_override_wins_over_ldap_groups(self):
+        """DB role override takes precedence over LDAP group membership."""
+        db_row = MagicMock(spec=UserRole)
+        db_row.role = "field_admin"
+        db_row.scope_id = "field-xyz"
+
+        # User has center-admins in LDAP but DB says field_admin — DB should win.
+        ldap = MockLDAPClient(groups=["infrahub-center-admins"])
+        async with make_client(ldap, db_role_row=db_row) as client:
+            response = await client.post(
+                "/api/v1/auth/login",
+                json={"username": "carol", "password": "secret"},
+            )
+
+        assert response.status_code == 200
+        claims = verify_token(response.json()["access_token"])
+        assert claims.role == "field_admin"
+        assert claims.scope_id == "field-xyz"
 
 
 # ---------------------------------------------------------------------------

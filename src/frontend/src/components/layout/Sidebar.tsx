@@ -2,10 +2,11 @@ import { Link } from "react-router-dom";
 import { useAuthStore } from "../../store/auth";
 
 const NAV_ITEMS = [
-  { label: "Dashboard", to: "/", roles: ["center_admin", "field_admin", "dept_admin", "team_lead"] },
-  { label: "Servers", to: "/servers", roles: ["center_admin", "field_admin"] },
-  { label: "Allocations", to: "/allocations", roles: ["center_admin", "field_admin", "dept_admin"] },
-  { label: "Projects", to: "/projects", roles: ["center_admin", "field_admin", "dept_admin", "team_lead"] },
+  { label: "Dashboard", to: "/", roles: ["center_admin", "field_admin", "dept_admin", "team_lead", "platform_admin"] },
+  { label: "Servers", to: "/servers", roles: ["center_admin", "field_admin", "platform_admin"] },
+  { label: "Allocations", to: "/allocations", roles: ["center_admin", "field_admin", "dept_admin", "platform_admin"] },
+  { label: "Projects", to: "/projects", roles: ["center_admin", "field_admin", "dept_admin", "team_lead", "platform_admin"] },
+  { label: "Admin", to: "/admin", roles: ["platform_admin"] },
 ] as const;
 
 export default function Sidebar() {

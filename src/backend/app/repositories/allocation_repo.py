@@ -259,3 +259,110 @@ class AllocationRepository:
             .where(FieldServerAllocation.field_id == field_id)
         )
         return list(result.scalars().all())
+
+    # ── Org CRUD ───────────────────────────────────────────────────────────────
+
+    async def get_center(self, center_id: str) -> Center:
+        result = await self.session.execute(select(Center).where(Center.id == center_id))
+        row = result.scalar_one_or_none()
+        if row is None:
+            raise NotFoundError(f"Center '{center_id}' not found")
+        return row
+
+    async def create_center(self, name: str) -> Center:
+        center = Center(name=name)
+        self.session.add(center)
+        await self.session.flush()
+        await self.session.refresh(center)
+        return center
+
+    async def update_center(self, center: Center, name: str) -> Center:
+        center.name = name
+        await self.session.flush()
+        await self.session.refresh(center)
+        return center
+
+    async def delete_center(self, center: Center) -> None:
+        await self.session.delete(center)
+        await self.session.flush()
+
+    async def center_has_fields(self, center_id: str) -> bool:
+        result = await self.session.execute(
+            select(func.count()).select_from(Field).where(Field.center_id == center_id)
+        )
+        return result.scalar_one() > 0
+
+    async def create_field(self, center_id: str, name: str, site: str) -> Field:
+        field = Field(center_id=center_id, name=name, site=site)
+        self.session.add(field)
+        await self.session.flush()
+        await self.session.refresh(field)
+        return field
+
+    async def update_field(self, field: Field, name: str, site: str) -> Field:
+        field.name = name
+        field.site = site
+        await self.session.flush()
+        await self.session.refresh(field)
+        return field
+
+    async def delete_field(self, field: Field) -> None:
+        await self.session.delete(field)
+        await self.session.flush()
+
+    async def field_has_departments(self, field_id: str) -> bool:
+        result = await self.session.execute(
+            select(func.count()).select_from(Department).where(Department.field_id == field_id)
+        )
+        return result.scalar_one() > 0
+
+    async def create_department(self, field_id: str, name: str) -> Department:
+        dept = Department(field_id=field_id, name=name)
+        self.session.add(dept)
+        await self.session.flush()
+        await self.session.refresh(dept)
+        return dept
+
+    async def update_department(self, dept: Department, name: str) -> Department:
+        dept.name = name
+        await self.session.flush()
+        await self.session.refresh(dept)
+        return dept
+
+    async def delete_department(self, dept: Department) -> None:
+        await self.session.delete(dept)
+        await self.session.flush()
+
+    async def department_has_teams(self, dept_id: str) -> bool:
+        result = await self.session.execute(
+            select(func.count()).select_from(Team).where(Team.department_id == dept_id)
+        )
+        return result.scalar_one() > 0
+
+    async def create_team(self, department_id: str, name: str, ldap_group_cn: str | None) -> Team:
+        team = Team(department_id=department_id, name=name, ldap_group_cn=ldap_group_cn)
+        self.session.add(team)
+        await self.session.flush()
+        await self.session.refresh(team)
+        return team
+
+    async def update_team(self, team: Team, name: str, ldap_group_cn: str | None) -> Team:
+        team.name = name
+        team.ldap_group_cn = ldap_group_cn
+        await self.session.flush()
+        await self.session.refresh(team)
+        return team
+
+    async def delete_team(self, team: Team) -> None:
+        await self.session.delete(team)
+        await self.session.flush()
+
+    async def team_has_projects(self, team_id: str) -> bool:
+        from app.models.project import Project
+
+        result = await self.session.execute(
+            select(func.count())
+            .select_from(Project)
+            .where(Project.team_id == team_id, Project.status != "deleting")
+        )
+        return result.scalar_one() > 0

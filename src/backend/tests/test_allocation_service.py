@@ -111,6 +111,19 @@ class TestAssignServerToField:
                 _claims("field_admin", "field-1"), "srv-1", "field-1"
             )
 
+    async def test_platform_admin_can_assign_server(self):
+        svc, repo = _make_service()
+        alloc = _make_server_alloc()
+        repo.get_server = AsyncMock()
+        repo.get_field = AsyncMock()
+        repo.create_server_allocation = AsyncMock(return_value=alloc)
+
+        result = await svc.assign_server_to_field(
+            _claims("platform_admin"), "srv-1", "field-1"
+        )
+
+        assert result.server_id == "srv-1"
+
     async def test_happy_path_returns_response(self):
         svc, repo = _make_service()
         alloc = _make_server_alloc()
@@ -317,6 +330,26 @@ class TestCreateDeptQuota:
 
         assert result.cpu_limit == 10
         assert result.ram_gb_limit == 20
+
+    async def test_platform_admin_can_create_dept_quota_for_any_field(self):
+        svc, repo = _make_service()
+        dq = _make_dept_quota(cpu_limit=10, ram_gb_limit=20)
+        repo.get_dept_quota_for_update = AsyncMock(return_value=None)
+        repo.get_field_total_cpu_ram = AsyncMock(return_value=(100, 200))
+        repo.get_dept_quota_sum_for_field_site = AsyncMock(return_value=(0, 0))
+        repo.create_dept_quota = AsyncMock(return_value=dq)
+
+        # platform_admin has no scope_id but can still create quotas for any field
+        result = await svc.create_dept_quota(
+            _claims("platform_admin"),
+            field_id="field-any",
+            dept_id="dept-1",
+            site="berlin",
+            cpu_limit=10,
+            ram_gb_limit=20,
+        )
+
+        assert result.cpu_limit == 10
 
 
 # ---------------------------------------------------------------------------
@@ -624,3 +657,31 @@ class TestGetAllocationTreeScopedVisibility:
         result = await svc.get_allocation_tree(_claims("field_admin", scope_id="f-other"))
 
         assert len(result.centers) == 0
+
+    async def test_platform_admin_sees_all_fields(self):
+        """platform_admin with no scope_id sees every field in every center."""
+        svc, repo = _make_service()
+        repo.get_full_tree = AsyncMock(return_value=[_make_center(id="c1")])
+        repo.get_fields_for_center = AsyncMock(
+            return_value=[_make_field(id="f1"), _make_field(id="f2")]
+        )
+        repo.get_servers_for_field = AsyncMock(return_value=[])
+        repo.get_dept_quotas_for_field = AsyncMock(return_value=[])
+
+        result = await svc.get_allocation_tree(_claims("platform_admin"))
+
+        assert len(result.centers) == 1
+        assert len(result.centers[0].fields) == 2
+
+    async def test_platform_admin_center_appears_with_empty_fields(self):
+        """platform_admin sees centers even when they have no fields (same as center_admin)."""
+        svc, repo = _make_service()
+        repo.get_full_tree = AsyncMock(return_value=[_make_center(id="c1")])
+        repo.get_fields_for_center = AsyncMock(return_value=[])
+        repo.get_servers_for_field = AsyncMock(return_value=[])
+        repo.get_dept_quotas_for_field = AsyncMock(return_value=[])
+
+        result = await svc.get_allocation_tree(_claims("platform_admin"))
+
+        assert len(result.centers) == 1
+        assert len(result.centers[0].fields) == 0
